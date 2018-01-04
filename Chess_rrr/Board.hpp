@@ -52,6 +52,7 @@ private:
     void print_line(int row) const;
     
     // Functions for piece move validity
+    bool is_your_turn(const Tile& tile) const;
     bool is_valid_pawn_march(const Tile& s, const Tile& e) const;
     bool is_valid_pawn_take(const Tile& s, const Tile& e) const;
     bool is_potential_pawn_take(const Tile& s, const Tile& e) const;
@@ -91,25 +92,26 @@ public:
     bool is_valid_move(const Tile& s, const Tile& e) const;
     // Special cases of movement
     bool is_enpassantable(const Tile& s, const Tile& e) const;
-    bool can_castle_kingside() const;
-    bool can_castle_queenside() const;
+    bool is_valid_castle_kingside() const;
+    bool is_valid_castle_queenside() const;
     // For move legality regarding king under attack
     // Returns true if enemy army can attack king
     bool is_in_check() const;
-    bool move_drops_king(const Tile& s, const Tile& e);
-    bool EP_drops_king(const Tile&s, const Tile& e);
+    // Returns true if player has no legal moves
+    bool can_move();
+    // Returns true if enemy army can attack king and king can't find safety
+    bool no_legal_moves();
     
     // Sets the Piece at e.row(), e.col() to the Piece at s.row(), s.col()
     // then set that starting Piece to empty.  If this leaves your king in
     // check, revert to original state and allow another move
-    void attempt_move(const Tile& s, const Tile& e);
+    bool attempt_move(const Tile& s, const Tile& e);
     // Special move commands
-    void castle_kingside();
-    void castle_queenside();
-    void attempt_take_EP(const Tile& s, const Tile& e);
-    // Returns true if enemy army can attack king and king can't find safety
-    bool is_checkmated() const;
-    
+    bool attempt_castle_kingside();
+    bool attempt_castle_queenside();
+    bool attempt_take_EP(const Tile& s, const Tile& e);
+    // Takes in two tiles and checks if any move from one to another is legal
+    bool is_legal_move(const Tile& s, const Tile& e);
 };
 
 std::ostream& operator<<(std::ostream& os, const Piece& Piece_in);

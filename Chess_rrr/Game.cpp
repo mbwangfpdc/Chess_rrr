@@ -33,17 +33,26 @@ bool Game::is_EP_input(std::string input) const {
 }
 
 void Game::run_2P_game(istream& ifs) {
+    ifs.clear();
     print_prompt();
     string input;
     while (ifs >> input && input != "resign") {
-        if (board.is_checkmated()) { cout << "Checkmate!" << endl; break; }
         make_move_human(input, ifs);
+        if (board.is_in_check()) {
+            if (board.no_legal_moves()) {
+                cout << "Checkmate!" << endl;
+                break;
+            } else {
+                cout << "Check!" << endl;
+            }
+        }
     }
     if (board.get_move_number() % 2 == 0) {
         cout << "Black wins!" << endl;
     } else {
         cout << "White wins!" << endl;
     }
+    ifs.clear();
 }
 
 void Game::print_prompt() const {
@@ -64,33 +73,29 @@ void Game::invalid_input(istream& is) const {
     cin.clear();
 }
 
-void Game::calculate_move() {
-    
-}
-
 void Game::make_move_human(string input, istream& is) {
     Board::Tile s(row_to_index(input[1]), col_to_index(input[0]));
     Board::Tile e(row_to_index(input[3]), col_to_index(input[2]));
     if (is_standard_input(input)) {
-        if (board.is_valid_move(s, e)) {
-            board.attempt_move(s, e);
+        if (board.attempt_move(s, e)) {
             print_prompt();
         } else {
             cout << "Illegal move" << endl;
         }
     } else if (is_castling_input(input)) {
-        if (input.length() == 3 && board.can_castle_kingside()) {
-            board.castle_kingside();
-            print_prompt();
-        } else if (board.can_castle_queenside()) {
-            board.castle_queenside();
-            print_prompt();
+        if (input.length() == 3) {
+            if (board.attempt_castle_kingside()) {
+                print_prompt();
+            }
+        } else if (input.length() == 5) {
+            if (board.attempt_castle_queenside()) {
+                print_prompt();
+            }
         } else {
             cout << "Illegal move" << endl;
         }
     } else if (is_EP_input(input)) {
-        if (board.is_enpassantable(s, e)) {
-            board.attempt_take_EP(s, e);
+        if (board.attempt_take_EP(s, e)) {
             print_prompt();
         } else {
             cout << "Illegal move" << endl;

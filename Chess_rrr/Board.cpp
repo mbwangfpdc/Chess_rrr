@@ -11,7 +11,6 @@ using namespace std;
 
 
 // Operators for managing Tiles
-
 bool Board::Tile::operator==(const Tile& rhs) const {
     return row_data == rhs.row() && col_data == rhs.col();
 }
@@ -187,32 +186,93 @@ const Board::Tile& Board::king_pos() const {
 // Functions for altering the board state by taking, moving, etc. //
 ////////////////////////////////////////////////////////////////////
 
-void Board::attempt_move(const Tile& s, const Tile& e) {
+bool Board::attempt_move(const Tile& s, const Tile& e) {
+    if (!is_valid_move(s, e)) {
+        return false;
+    }
     // Store piece in case of bad move
     Piece taken_piece(Piece_at(e));
     Piece moved_piece(Piece_at(s));
-    // Move piece
-    Piece_at(e).receive(Piece_at(s));
+    // Move piece, update king_pos
     if (Piece_at(s).get_type() == KING) {
         king_pos() = e;
     }
+    Piece_at(e).receive(Piece_at(s));
+    // If end up in check, revert move
     if (is_in_check()) {
-        // If end up in check, revert move
-        if (Piece_at(e).get_type() == KING) {
+        // If you moved the king, move it back
+        if (king_pos() == e) {
             king_pos() = s;
         }
         Piece_at(s) = moved_piece;
         Piece_at(e) = taken_piece;
-        cout << "Your king will be lost!" << endl;
+        cout << "Your king will be taken!" << endl;
+        return false;
     } else {
-        // Otherwise, go to the next move and set last_move, update king_pos
+        // Otherwise, go to the next move and set last_move
         ++move_number;
         last_move[0] = s;
         last_move[1] = e;
+        return true;
     }
 }
 
-void Board::castle_kingside() {
+bool Board::is_legal_move(const Tile& s, const Tile& e) {
+    bool legal;
+    if (!is_valid_move(s, e)) {
+        return false;
+    }
+    // Store piece in case of bad move
+    Piece taken_piece(Piece_at(e));
+    Piece moved_piece(Piece_at(s));
+    // Move piece, update king_pos
+    if (Piece_at(s).get_type() == KING) {
+        king_pos() = e;
+    }
+    Piece_at(e).receive(Piece_at(s));
+    // If end up in check, store a false return value
+    is_in_check() ? legal = false : legal = true;
+    // Revert move. If you moved the king, record reversion
+    if (king_pos() == e) {
+        king_pos() = s;
+    }
+    Piece_at(s) = moved_piece;
+    Piece_at(e) = taken_piece;
+    // If the move is legal, then return true. If the move is illegal, but
+    // the piece is a pawn then check enpassanting.
+    if (legal) {
+        return true;
+    } else if (Piece_at(s).get_type() != PAWN) {
+        return false;
+    }
+    
+    if (!is_enpassantable(s, e)) {
+        return false;
+    }
+    Piece_at(e).receive(Piece_at(s));
+    if (is_white_turn()) {
+        Piece taken_pawn(Piece_at(Tile(e.row() + 1, e.col())));
+        Piece_at(Tile(e.row() + 1, e.col())).receive(Piece_at(Tile(e.row() - 1, e.col())));
+        is_in_check() ? legal = false : legal = true;
+        // Revert the move
+        Piece_at(s) = moved_piece;
+        Piece_at(Tile(e.row() + 1, e.col())) = taken_pawn;
+        return legal;
+    } else {
+        Piece taken_pawn(Piece_at(Tile(e.row() - 1, e.col())));
+        Piece_at(Tile(e.row() - 1, e.col())).receive(Piece_at(Tile(e.row() + 1, e.col()))) ;
+        is_in_check() ? legal = false : legal = true;
+        // Revert the move
+        Piece_at(s) = moved_piece;
+        Piece_at(Tile(e.row() - 1, e.col())) = taken_pawn;
+        return legal;
+    }
+}
+
+bool Board::attempt_castle_kingside() {
+    if (!is_valid_castle_kingside()) {
+        return false;
+    }
     // Make reference to whichever king_position is relevant
     Tile& k_pos(king_pos());
     Piece_at(Tile(k_pos.row(), k_pos.col() + 2)).receive(Piece_at(k_pos));
@@ -223,9 +283,13 @@ void Board::castle_kingside() {
     k_pos = Tile(k_pos.row(), k_pos.col() + 2);
     last_move[0] = Tile(k_pos.row(), k_pos.col() - 2);
     last_move[1] = k_pos;
+    return true;
 }
 
-void Board::castle_queenside() {
+bool Board::attempt_castle_queenside() {
+    if (!is_valid_castle_queenside()) {
+        return false;
+    }
     Tile& k_pos(king_pos());
     Piece_at(Tile(k_pos.row(), k_pos.col() - 2)).receive(Piece_at(k_pos));
     Piece_at(Tile(k_pos.row(),
@@ -235,9 +299,13 @@ void Board::castle_queenside() {
     k_pos = Tile(k_pos.row(), k_pos.col() - 2);
     last_move[0] = Tile(k_pos.row(), k_pos.col() + 2);
     last_move[1] = k_pos;
+    return true;
 }
 
-void Board::attempt_take_EP(const Tile &s, const Tile &e) {
+bool Board::attempt_take_EP(const Tile &s, const Tile &e) {
+    if (!is_enpassantable(s, e)) {
+        return false;
+    }
     Piece moving_pawn(Piece_at(s));
     Piece_at(e).receive(Piece_at(s));
     if (is_white_turn()) {
@@ -246,10 +314,12 @@ void Board::attempt_take_EP(const Tile &s, const Tile &e) {
         if (is_in_check()) {
             Piece_at(s) = moving_pawn;
             Piece_at(Tile(e.row() + 1, e.col())) = taken_pawn;
+            return false;
         } else {
             ++move_number;
             last_move[0] = s;
             last_move[1] = e;
+            return true;
         }
     } else {
         Piece taken_pawn(Piece_at(Tile(e.row() - 1, e.col())));
@@ -257,10 +327,12 @@ void Board::attempt_take_EP(const Tile &s, const Tile &e) {
         if (is_in_check()) {
             Piece_at(s) = moving_pawn;
             Piece_at(Tile(e.row() - 1, e.col())) = taken_pawn;
+            return false;
         } else {
             ++move_number;
             last_move[0] = s;
             last_move[1] = e;
+            return true;
         }
     }
 }
@@ -342,7 +414,21 @@ bool Board::is_in_check() const {
     }
 }
 
-bool Board::is_checkmated() const {
+bool Board::no_legal_moves() {
+    for (int srow = 0; srow < 8; ++srow) {
+        for (int scol = 0; scol < 8; ++scol) {
+            for (int erow = 0; erow < 8; ++erow) {
+                for (int ecol = 0; ecol < 8; ++ecol) {
+                    if (is_legal_move(Tile(srow, scol), Tile(erow, ecol))) {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    if (is_valid_castle_kingside() || is_valid_castle_queenside()) {
+        return false;
+    }
     return true;
 }
 
@@ -378,13 +464,17 @@ bool Board::is_checkmated() const {
 // Basic movement validity functions //
 ///////////////////////////////////////
 
+bool Board::is_your_turn(const Tile &tile) const {
+    return (Piece_at(tile).get_side() == WHITE && is_white_turn()) ||
+    (Piece_at(tile).get_side() == BLACK && !is_white_turn());
+}
+
 bool Board::is_valid_move(const Tile& s, const Tile& e) const {
     // False if trying to move EMPTY, trying to move onto friendly, or trying
     // to move an enemy piece
     if (Piece_at(s).get_type() == EMPTY ||
-        (Piece_at(e).get_side() == Piece_at(s).get_side() && Piece_at(e).get_type() != EMPTY) ||
-        (Piece_at(s).get_side() == BLACK && move_number % 2 == 0) ||
-        (Piece_at(s).get_side() == WHITE && move_number % 2 == 1)) {
+        Piece_at(s).get_side() != is_white_turn() ||
+        (Piece_at(e).get_type() != EMPTY && Piece_at(e).get_side() == Piece_at(s).get_side())) {
         return false;
     }
     switch (Piece_at(s).get_type()) {
@@ -519,24 +609,6 @@ bool Board::is_valid_queen_move(const Tile& s, const Tile& e) const {
     return is_valid_rook_move(s, e) || is_valid_bishop_move(s, e);
 }
 
-
-
-/*bool Board::is_exposing_king(const Tile &s, const Tile &e) const {
-    if (s != king_pos()) {
-        if (s.col() != e.col() && s.col() == king_pos().col()) {
-            <#statements#>
-        }
-        if (s.row() != e.row() && s.row() == king_pos().row){
-            <#statements#>
-        }
-        if () {
-            
-        }
-    } else {
-        return tile_is_attacked(e);
-    }
-    
-}*/
 ///////////////////////////////////////
 // Basic movement validity functions //
 ///////////////////////////////////////
@@ -604,27 +676,27 @@ bool Board::is_enpassantable(const Tile& s, const Tile& e) const {
 
 // Return true if space between king and kingside guard are empty, and each are
 // unmoved
-bool Board::can_castle_kingside() const {
-    return !tile_is_attacked(king_pos()) &&
-    !tile_is_attacked(Tile(king_pos().row(), king_pos().col() + 1)) &&
-    !tile_is_attacked(Tile(king_pos().row(), king_pos().col() + 2)) &&
+bool Board::is_valid_castle_kingside() const {
+    return Piece_at(king_pos()).get_has_moved() == UNMOVED &&
+    Piece_at(Tile(king_pos().row(), king_pos().col() + 3)).get_has_moved() == UNMOVED &&
     Piece_at(Tile(king_pos().row(), king_pos().col() + 1)).get_type() == EMPTY &&
     Piece_at(Tile(king_pos().row(), king_pos().col() + 2)).get_type() == EMPTY &&
-    Piece_at(king_pos()).get_has_moved() == UNMOVED &&
-    Piece_at(Tile(king_pos().row(), king_pos().col() + 3)).get_has_moved() == UNMOVED;
+    !tile_is_attacked(Tile(king_pos().row(), king_pos().col() + 1)) &&
+    !tile_is_attacked(Tile(king_pos().row(), king_pos().col() + 2)) &&
+    !tile_is_attacked(king_pos());
 }
 
 // Return true if space between king and queenside guard are empty, and each are
 // unmoved
-bool Board::can_castle_queenside() const {
-    return !tile_is_attacked(king_pos()) &&
-    !tile_is_attacked(Tile(king_pos().row(), king_pos().col() - 1)) &&
-    !tile_is_attacked(Tile(king_pos().row(), king_pos().col() - 2)) &&
+bool Board::is_valid_castle_queenside() const {
+    return Piece_at(king_pos()).get_has_moved() == UNMOVED &&
+    Piece_at(Tile(king_pos().row(), king_pos().col() - 4)).get_has_moved() == UNMOVED &&
     Piece_at(Tile(king_pos().row(), king_pos().col() - 1)).get_type() == EMPTY &&
     Piece_at(Tile(king_pos().row(), king_pos().col() - 2)).get_type() == EMPTY &&
     Piece_at(Tile(king_pos().row(), king_pos().col() - 3)).get_type() == EMPTY &&
-    Piece_at(king_pos()).get_has_moved() == UNMOVED &&
-    Piece_at(Tile(king_pos().row(), king_pos().col() - 4)).get_has_moved() == UNMOVED;
+    !tile_is_attacked(Tile(king_pos().row(), king_pos().col() - 1)) &&
+    !tile_is_attacked(Tile(king_pos().row(), king_pos().col() - 2)) &&
+    !tile_is_attacked(king_pos());
 }
 
 ////////////////////////////

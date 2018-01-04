@@ -15,7 +15,7 @@ int main(int argc, const char * argv[]) {
     Game game(2);
     ifstream test_file;
     test_file.open("test_EP_down.txt");
-    game.run_2P_game(test_file);
+    game.run_2P_game(cin);
 }
 
 
